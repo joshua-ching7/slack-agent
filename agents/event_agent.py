@@ -1,12 +1,15 @@
 """
 Event Reminder Agent
 
-Polls Google Calendar (or a Google Sheet) for upcoming club events and sends
-contextual, Claude-generated reminders to Slack at configurable intervals
-(e.g. 7 days, 3 days, 1 day, and day-of).
+Polls Google Calendar (or a Google Sheet) for upcoming club events and either:
 
-Claude is used to generate natural-sounding messages that match the event
-type (social vs. professional vs. meeting) and urgency.
+  • DMs the social chair with a Claude-drafted announcement for them to
+    personalise and post (for social events — controlled by SOCIAL_CHAIR_NOTIFY
+    and SOCIAL_CHAIR_EVENT_TYPES), or
+  • Posts the reminder directly to the events Slack channel (all other events,
+    or when the social chair cannot be found).
+
+Claude generates naturally-worded, tone-matched messages for each event type.
 """
 
 import logging
@@ -19,6 +22,7 @@ import state
 from services.google_calendar import ClubEvent, get_upcoming_events
 from services.google_sheets import get_events_from_sheet
 from services import slack_client
+from services.slack_social_chair import notify_social_chair
 
 logger = logging.getLogger(__name__)
 
@@ -119,33 +123,57 @@ def check_and_send_reminders() -> None:
             # Generate a Claude-powered message
             message_text = _generate_reminder_message(event, days_until)
 
-            # Build Slack Block Kit payload
-            blocks = slack_client.event_reminder_blocks(
-                event_name=event.name,
-                friendly_date=event.friendly_date,
-                location=event.location,
-                description=event.description,
-                event_type=event.event_type,
-                days_until=days_until,
-                claude_message=message_text,
+            # ── Route: social chair DM or direct post ──────────
+            routed_to_chair = False
+            should_notify_chair = (
+                config.SOCIAL_CHAIR_NOTIFY
+                and (
+                    "all" in config.SOCIAL_CHAIR_EVENT_TYPES
+                    or event.event_type in config.SOCIAL_CHAIR_EVENT_TYPES
+                )
             )
 
-            # Fallback plain-text for notifications
-            fallback = (
-                f"[{config.CLUB_NAME}] Reminder: {event.name} on {event.friendly_date}"
-            )
+            if should_notify_chair:
+                routed_to_chair = notify_social_chair(
+                    event_name=event.name,
+                    event_date=event.friendly_date,
+                    event_location=event.location,
+                    event_type=event.event_type,
+                    days_until=days_until,
+                    claude_draft=message_text,
+                )
 
-            ts = slack_client.send_message(
-                channel=config.SLACK_EVENTS_CHANNEL,
-                text=fallback,
-                blocks=blocks,
-            )
+            if not routed_to_chair:
+                # Post directly to the events channel (non-social events, or
+                # if the social chair could not be found in Slack).
+                blocks = slack_client.event_reminder_blocks(
+                    event_name=event.name,
+                    friendly_date=event.friendly_date,
+                    location=event.location,
+                    description=event.description,
+                    event_type=event.event_type,
+                    days_until=days_until,
+                    claude_message=message_text,
+                )
+                fallback = (
+                    f"[{config.CLUB_NAME}] Reminder: {event.name} on {event.friendly_date}"
+                )
+                ts = slack_client.send_message(
+                    channel=config.SLACK_EVENTS_CHANNEL,
+                    text=fallback,
+                    blocks=blocks,
+                )
+                sent_ok = ts is not None
+            else:
+                sent_ok = True  # DM counts as handled
 
-            if ts:
+            if sent_ok:
                 state.mark_reminder_sent(event.id, threshold, now_iso)
                 reminders_sent += 1
+                route = "social chair DM" if routed_to_chair else "direct post"
                 logger.info(
-                    "Sent %d-day reminder for '%s' (ts=%s).", threshold, event.name, ts
+                    "Handled %d-day reminder for '%s' via %s.",
+                    threshold, event.name, route,
                 )
 
     logger.info("Event Agent: sent %d reminder(s) this run.", reminders_sent)
