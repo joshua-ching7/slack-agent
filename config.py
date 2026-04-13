@@ -79,6 +79,9 @@ ASUC_CALNET_USERNAME: str = os.getenv("ASUC_CALNET_USERNAME", "")
 ASUC_CALNET_PASSWORD: str = os.getenv("ASUC_CALNET_PASSWORD", "")
 # Name of your student org as it appears in the ASUC portal
 ASUC_ORG_NAME: str = os.getenv("ASUC_ORG_NAME", config_club_name := os.getenv("CLUB_NAME", ""))
+# Home Department value to select in the Payee Info dropdown (Step 1 of the form).
+# Must match the label exactly as it appears in the portal's Home Department list.
+ASUC_HOME_DEPARTMENT: str = os.getenv("ASUC_HOME_DEPARTMENT", "")
 # Local directory where downloaded receipt files are stored
 ASUC_RECEIPTS_DIR: str = os.getenv("ASUC_RECEIPTS_DIR", "receipts")
 # Run the browser in headless mode (True) or show the window (False for debugging)
