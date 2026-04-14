@@ -67,8 +67,8 @@ Guidelines:
     try:
         response = _claude.messages.create(
             model="claude-opus-4-6",
-            max_tokens=256,
-            thinking={"type": "adaptive"},
+            max_tokens=1024,
+            thinking={"type": "enabled", "budget_tokens": 512},
             messages=[{"role": "user", "content": prompt}],
         )
         # Extract text from the response (skip thinking blocks)
