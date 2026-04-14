@@ -73,7 +73,7 @@ FINANCE_WEEKLY_MINUTE: int = int(os.getenv("FINANCE_WEEKLY_MINUTE", "0"))
 
 # ── ASUC Reimbursement Submission ─────────────────────────────
 # URL of the ASUC / Berkeley finance portal for submitting reimbursements
-ASUC_PORTAL_URL: str = os.getenv("ASUC_PORTAL_URL", "")
+ASUC_PORTAL_URL: str = os.getenv("ASUC_PORTAL_URL", "https://reimburse.berkeley.edu")
 # CalNet credentials used for SSO login to the portal
 ASUC_CALNET_USERNAME: str = os.getenv("ASUC_CALNET_USERNAME", "")
 ASUC_CALNET_PASSWORD: str = os.getenv("ASUC_CALNET_PASSWORD", "")
